@@ -10,6 +10,7 @@ from fish_reader import progress
 from fish_reader.console import overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
+BACK_KEYS = {"\x08", "\x7f"}  # Backspace（Windows/大多数终端 \x08，部分终端 \x7f）
 
 
 def _read_key() -> str:
@@ -47,16 +48,22 @@ def run(book_path: Path, lines: list[str]) -> None:
         safe_print(f"《{book_path.stem}》已经读完啦。")
         return
 
-    index = start
+    # pos 是当前显示行的下标，-1 表示还没显示过任何一行
+    pos = start - 1
     try:
-        while index < len(lines):
+        while True:
             key = _read_key()
             if key in QUIT_KEYS:
                 break
-            overwrite_line(lines[index])
-            index += 1
+            if key in BACK_KEYS:
+                if pos <= 0:
+                    continue
+                pos -= 1
+            else:
+                pos = min(pos + 1, len(lines) - 1)
+            overwrite_line(lines[pos])
     except KeyboardInterrupt:
         pass
     finally:
-        progress.set_line_index(book_name, index)
+        progress.set_line_index(book_name, pos + 1)
         _clear_screen()
