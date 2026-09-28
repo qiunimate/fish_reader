@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ctypes
 import sys
+import unicodedata
 
 _STD_OUTPUT_HANDLE = -11
 
@@ -48,13 +49,19 @@ def safe_input(prompt: str = "") -> str:
     return input()
 
 
-_last_overwrite_len = 0
+def _display_width(text: str) -> int:
+    """终端里中日韩字符占 2 列、其余占 1 列，补空格擦除要按列宽算，不能按字符数算。"""
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+_last_overwrite_width = 0
 
 
 def overwrite_line(text: str) -> None:
     """原地刷新同一行：\\r 回到行首覆盖写，不产生新行，避免屏幕一直往下滚。"""
-    global _last_overwrite_len
-    padded = text.ljust(_last_overwrite_len)
-    _last_overwrite_len = len(text)
-    safe_print("\r" + padded, end="")
+    global _last_overwrite_width
+    width = _display_width(text)
+    pad = max(_last_overwrite_width - width, 0)
+    _last_overwrite_width = width
+    safe_print("\r" + text + " " * pad, end="")
 
