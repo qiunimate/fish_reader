@@ -9,9 +9,19 @@ from fish_reader import library, progress, reader
 
 
 def _ensure_utf8_stdout() -> None:
-    # Windows 终端默认代码页常是 cp1252/gbk，直接打印小说里的中文会抛 UnicodeEncodeError
+    # 只改 Python 输出流的编码不够：控制台本身的代码页（常是 936/1252）
+    # 不是 UTF-8 的话，即使字节是对的，终端也会按错误的代码页解释成乱码，
+    # 所以 Windows 下要先把控制台代码页切到 UTF-8 (65001)。
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
 
 
 def _pick_book(books: list, requested_name: str | None):
