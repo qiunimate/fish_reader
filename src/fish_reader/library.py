@@ -13,7 +13,21 @@ def list_books() -> list[Path]:
     return sorted(BOOKS_DIR.glob("*.txt"))
 
 
+# 国内流传的小说 txt 十有八九不是 UTF-8，而是 GBK/GB18030；顺序尝试，
+# 优先严格解码，任何一种都失败才用 errors="ignore" 兜底，避免整本乱码。
+_CANDIDATE_ENCODINGS = ("utf-8-sig", "gb18030")
+
+
+def _decode_book(raw: bytes) -> str:
+    for encoding in _CANDIDATE_ENCODINGS:
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="ignore")
+
+
 def load_lines(book_path: Path) -> list[str]:
     """按行读取小说正文，过滤掉空行（避免翻页翻到空白浪费一次按键）。"""
-    text = book_path.read_text(encoding="utf-8", errors="ignore")
+    text = _decode_book(book_path.read_bytes())
     return [line.strip() for line in text.splitlines() if line.strip()]
