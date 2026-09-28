@@ -6,7 +6,7 @@ import argparse
 import sys
 
 from fish_reader import library, progress, reader
-from fish_reader.console import clear_screen, safe_input, safe_print
+from fish_reader.console import capture_prompt_prefix, clear_screen, safe_input, safe_print
 
 
 def _pick_book(books: list, requested_name: str | None):
@@ -37,6 +37,10 @@ def _pick_book(books: list, requested_name: str | None):
 
 
 def main() -> None:
+    # 必须在打印任何东西之前抓，抓的是"刚敲完 fish-reader 回车前那一行"，
+    # 晚了这一行就被后面的输出顶上去、读不到了。
+    prompt_prefix = capture_prompt_prefix()
+
     parser = argparse.ArgumentParser(description="伪装摸鱼阅读器")
     parser.add_argument("book", nargs="?", help="书名（文件名或不带后缀的名字），不传则进入书架选择")
     args = parser.parse_args()
@@ -49,6 +53,8 @@ def main() -> None:
     book_path = _pick_book(books, args.book)
     lines = library.load_lines(book_path)
     clear_screen()
+    if prompt_prefix:
+        safe_print(prompt_prefix, end="")
     reader.run(book_path, lines)
 
 

@@ -99,8 +99,53 @@ def _fill_blank(start: _COORD, count: int) -> None:
     )
 
 
+def _read_row_text(row: int, width: int) -> str:
+    buf = ctypes.create_unicode_buffer(width + 1)
+    read = ctypes.c_uint32(0)
+    ok = ctypes.windll.kernel32.ReadConsoleOutputCharacterW(
+        _console_handle(), buf, width, _COORD(0, row), ctypes.byref(read)
+    )
+    if not ok:
+        return ""
+    return buf.value[: read.value]
+
+
+_PROMPT_DELIMITERS = ("> ", "$ ", "# ", "% ")
+
+
+def capture_prompt_prefix() -> str | None:
+    """在程序打印任何东西之前调用：把光标上一行（也就是刚敲完回车前的
+    "提示符 + 命令" 那一行）读出来，截掉命令只留提示符本身。提示符本身
+    因人而异（conda 环境名、路径、oh-my-posh 主题……），所以只能现读，
+    不能写死；找不到常见提示符分隔符就放弃，调用方要有兜底逻辑。
+    """
+    if not _USE_WRITE_CONSOLE:
+        return None
+
+    info = _screen_info()
+    row = info.dwCursorPosition.Y - 1
+    if row < 0:
+        return None
+
+    buffer_width = max(info.dwSize.X, 1)
+    row_text = _read_row_text(row, buffer_width).rstrip()
+    for delim in _PROMPT_DELIMITERS:
+        idx = row_text.rfind(delim)
+        if idx != -1:
+            return row_text[: idx + len(delim)]
+    return None
+
+
 _anchor: _COORD | None = None
 _last_rows = 1
+
+
+def _rows_needed(width: int, start_col: int, buffer_width: int) -> int:
+    first_row_capacity = max(buffer_width - start_col, 0)
+    if width <= first_row_capacity:
+        return 1
+    remaining = width - first_row_capacity
+    return 1 + -(-remaining // buffer_width)  # 向上取整
 
 
 def overwrite_line(text: str) -> None:
@@ -108,7 +153,9 @@ def overwrite_line(text: str) -> None:
 
     小说一行文字常常超出终端宽度会自动换行，实际占用多行屏幕；只用 \\r
     回到本行行首没法清掉上面被折行占用的部分，换短行时会有残留。这里
-    改成记住起始光标坐标，按上一次实际占用的行数整块清空后再重写。
+    改成记住起始光标坐标，按上一次实际占用的行数整块清空后再重写。锚点
+    列不一定是 0（比如紧跟在 shell 提示符后面写），所以行数/清除范围都
+    要把起始列的偏移算进去。
     """
     global _anchor, _last_rows
 
@@ -125,10 +172,10 @@ def overwrite_line(text: str) -> None:
         _set_cursor(_anchor)
 
     width = _display_width(text)
-    rows_needed = max(1, -(-width // buffer_width))  # 向上取整
+    rows_needed = _rows_needed(width, _anchor.X, buffer_width)
     clear_rows = max(_last_rows, rows_needed)
 
-    _fill_blank(_anchor, buffer_width * clear_rows)
+    _fill_blank(_anchor, buffer_width * clear_rows - _anchor.X)
     _set_cursor(_anchor)
     safe_print(text, end="")
     _last_rows = rows_needed
