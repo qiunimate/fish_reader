@@ -1,0 +1,7 @@
+books/*.txt
+*.egg-info/
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/

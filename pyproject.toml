@@ -1,0 +1,15 @@
+[project]
+name = "fish-reader"
+version = "0.1.0"
+description = "terminal reader"
+requires-python = ">=3.9"
+
+[project.scripts]
+fish-reader = "fish_reader.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
