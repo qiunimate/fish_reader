@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from fish_reader import progress
-from fish_reader.console import safe_print
+from fish_reader.console import overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
 
@@ -53,7 +53,7 @@ def run(book_path: Path, lines: list[str]) -> None:
             key = _read_key()
             if key in QUIT_KEYS:
                 break
-            safe_print(lines[index])
+            overwrite_line(lines[index])
             index += 1
     except KeyboardInterrupt:
         pass

@@ -46,3 +46,15 @@ def safe_input(prompt: str = "") -> str:
     """跨编码环境安全的 input()：提示文字走 safe_print，避免 input() 自己用错编码打印。"""
     safe_print(prompt, end="")
     return input()
+
+
+_last_overwrite_len = 0
+
+
+def overwrite_line(text: str) -> None:
+    """原地刷新同一行：\\r 回到行首覆盖写，不产生新行，避免屏幕一直往下滚。"""
+    global _last_overwrite_len
+    padded = text.ljust(_last_overwrite_len)
+    _last_overwrite_len = len(text)
+    safe_print("\r" + padded, end="")
+
