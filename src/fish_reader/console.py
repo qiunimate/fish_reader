@@ -9,6 +9,7 @@ cp850），跟原始控制台代码页（chcp/SetConsoleOutputCP）是两回事�
 from __future__ import annotations
 
 import ctypes
+import os
 import sys
 import unicodedata
 
@@ -47,6 +48,10 @@ def safe_input(prompt: str = "") -> str:
     """跨编码环境安全的 input()：提示文字走 safe_print，避免 input() 自己用错编码打印。"""
     safe_print(prompt, end="")
     return input()
+
+
+def clear_screen() -> None:
+    os.system("cls" if sys.platform == "win32" else "clear")
 
 
 def _display_width(text: str) -> int:

@@ -6,7 +6,7 @@ import argparse
 import sys
 
 from fish_reader import library, progress, reader
-from fish_reader.console import safe_input, safe_print
+from fish_reader.console import clear_screen, safe_input, safe_print
 
 
 def _pick_book(books: list, requested_name: str | None):
@@ -48,6 +48,7 @@ def main() -> None:
 
     book_path = _pick_book(books, args.book)
     lines = library.load_lines(book_path)
+    clear_screen()
     reader.run(book_path, lines)
 
 

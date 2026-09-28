@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 from fish_reader import progress
-from fish_reader.console import overwrite_line, safe_print
+from fish_reader.console import clear_screen, overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
 BACK_KEYS = {"\x08", "\x7f"}  # Backspace（Windows/大多数终端 \x08，部分终端 \x7f）
@@ -36,10 +35,6 @@ def _read_key() -> str:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
-def _clear_screen() -> None:
-    os.system("cls" if sys.platform == "win32" else "clear")
-
-
 def run(book_path: Path, lines: list[str]) -> None:
     book_name = book_path.name
     start = progress.get_line_index(book_name)
@@ -66,4 +61,4 @@ def run(book_path: Path, lines: list[str]) -> None:
         pass
     finally:
         progress.set_line_index(book_name, pos + 1)
-        _clear_screen()
+        clear_screen()
