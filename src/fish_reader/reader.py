@@ -18,6 +18,13 @@ def _read_key() -> str:
         import msvcrt
 
         ch = msvcrt.getch()
+        if ch in (b"\x00", b"\xe0"):
+            # Extended key (arrows, Home/End, PageUp/Down, Delete, F-keys):
+            # msvcrt reports it as this lead byte followed by a second
+            # getch() call for the actual scan code. Consume that second
+            # byte now so it doesn't get misread as the next real keypress.
+            msvcrt.getch()
+            return ""
         try:
             return ch.decode("utf-8", errors="ignore")
         except UnicodeDecodeError:
@@ -48,6 +55,8 @@ def run(book_path: Path, lines: list[str]) -> None:
     try:
         while True:
             key = _read_key()
+            if key == "":
+                continue  # unrecognized/undecodable key, ignore and wait for the next one
             if key in QUIT_KEYS:
                 break
             if key in BACK_KEYS:

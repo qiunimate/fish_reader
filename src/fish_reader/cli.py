@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from fish_reader import config, library, progress, reader
 from fish_reader.console import capture_prompt_prefix, clear_screen, safe_input, safe_print
 
 
-def _pick_book(books: list, requested_name: str | None):
+def _pick_book(books: list[Path], requested_name: str | None) -> Path:
     if requested_name is not None:
         matches = [b for b in books if b.name == requested_name or b.stem == requested_name]
         if not matches:
