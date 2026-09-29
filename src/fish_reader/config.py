@@ -9,7 +9,7 @@ from typing import Any
 CONFIG_DIR = Path.home() / ".fish_reader"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
-DEFAULT_CHARS_PER_CHUNK = 50
+DEFAULT_CHARS_PER_CHUNK = 30
 
 
 def _load() -> dict[str, Any]:
