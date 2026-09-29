@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from fish_reader import library, progress, reader
+from fish_reader import config, library, progress, reader
 from fish_reader.console import capture_prompt_prefix, clear_screen, safe_input, safe_print
 
 
@@ -43,7 +43,21 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="伪装摸鱼阅读器")
     parser.add_argument("book", nargs="?", help="书名（文件名或不带后缀的名字），不传则进入书架选择")
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help=f"每次翻页显示多少个字符，会保存为默认配置（默认 {config.DEFAULT_CHARS_PER_CHUNK}）",
+    )
     args = parser.parse_args()
+
+    if args.chunk_size is not None:
+        if args.chunk_size <= 0:
+            safe_print("--chunk-size 必须是正整数")
+            sys.exit(1)
+        config.set_chars_per_chunk(args.chunk_size)
+    chars_per_chunk = config.get_chars_per_chunk()
 
     books = library.list_books()
     if not books:
@@ -51,7 +65,7 @@ def main() -> None:
         sys.exit(1)
 
     book_path = _pick_book(books, args.book)
-    lines = library.load_lines(book_path)
+    lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
     clear_screen()
     if prompt_prefix:
         safe_print(prompt_prefix, end="")

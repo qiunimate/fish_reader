@@ -31,3 +31,14 @@ def load_lines(book_path: Path) -> list[str]:
     """按行读取小说正文，过滤掉空行（避免翻页翻到空白浪费一次按键）。"""
     text = _decode_book(book_path.read_bytes())
     return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def chunk_lines(lines: list[str], chars_per_chunk: int) -> list[str]:
+    """把每行按固定字符数切块，控制每次翻页显示多少字。"""
+    if chars_per_chunk <= 0:
+        return lines
+    chunks: list[str] = []
+    for line in lines:
+        for start in range(0, len(line), chars_per_chunk):
+            chunks.append(line[start : start + chars_per_chunk])
+    return chunks
