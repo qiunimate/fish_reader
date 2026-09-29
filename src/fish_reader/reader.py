@@ -1,4 +1,4 @@
-"""Interactive reading loop: any key advances a line, q / Ctrl+C quits."""
+"""Interactive reading loop: a/d move back/forward a line, s toggles hiding the text, q / Ctrl+C quits."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from fish_reader import progress
 from fish_reader.console import clear_screen, overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
-BACK_KEYS = {"\x08", "\x7f"}  # Backspace (\x08 on Windows/most terminals, \x7f on some)
+BACK_KEYS = {"a", "A"}
+FORWARD_KEYS = {"d", "D"}
+TOGGLE_HIDE_KEYS = {"s", "S"}
 
 
 def _read_key() -> str:
@@ -52,6 +54,7 @@ def run(book_path: Path, lines: list[str]) -> None:
 
     # pos is the index of the currently displayed line; -1 means nothing shown yet
     pos = start - 1
+    hidden = False
     try:
         while True:
             key = _read_key()
@@ -59,13 +62,21 @@ def run(book_path: Path, lines: list[str]) -> None:
                 continue  # unrecognized/undecodable key, ignore and wait for the next one
             if key in QUIT_KEYS:
                 break
+            if key in TOGGLE_HIDE_KEYS:
+                hidden = not hidden
+                if pos >= 0:
+                    overwrite_line("" if hidden else lines[pos])
+                continue
             if key in BACK_KEYS:
                 if pos <= 0:
                     continue
                 pos -= 1
-            else:
+            elif key in FORWARD_KEYS:
                 pos = min(pos + 1, len(lines) - 1)
-            overwrite_line(lines[pos])
+            else:
+                continue  # unbound key, ignore
+            if not hidden:
+                overwrite_line(lines[pos])
     except KeyboardInterrupt:
         pass
     finally:
