@@ -11,7 +11,6 @@ that translation layer entirely.
 from __future__ import annotations
 
 import ctypes
-import os
 import sys
 import unicodedata
 
@@ -50,10 +49,6 @@ def safe_input(prompt: str = "") -> str:
     """Encoding-safe input(): the prompt text goes through safe_print so input() doesn't print it with the wrong encoding."""
     safe_print(prompt, end="")
     return input()
-
-
-def clear_screen() -> None:
-    os.system("cls" if sys.platform == "win32" else "clear")
 
 
 def _display_width(text: str) -> int:
@@ -186,4 +181,52 @@ def overwrite_line(text: str) -> None:
     _set_cursor(_anchor)
     safe_print(text, end="")
     _last_rows = rows_needed
+
+
+def clear_last_block() -> None:
+    """Blank out exactly the rows overwrite_line has been redrawing, then
+    forget the anchor. Unlike a full clear_screen(), this leaves everything
+    printed before the reading session untouched -- only the novel text
+    itself disappears.
+    """
+    global _anchor, _last_rows
+
+    if _anchor is None or not _USE_WRITE_CONSOLE:
+        _anchor = None
+        _last_rows = 1
+        return
+
+    info = _screen_info()
+    buffer_width = max(info.dwSize.X, 1)
+    _fill_blank(_anchor, buffer_width * _last_rows - _anchor.X)
+    _set_cursor(_anchor)
+
+    _anchor = None
+    _last_rows = 1
+
+
+def mark_position() -> _COORD | None:
+    """Snapshot the current cursor position, to later erase everything
+    printed from here on (see clear_block) without touching anything above
+    it -- i.e. real terminal history from before this program ran.
+    """
+    if not _USE_WRITE_CONSOLE:
+        return None
+    info = _screen_info()
+    return _COORD(info.dwCursorPosition.X, info.dwCursorPosition.Y)
+
+
+def clear_block(start: _COORD) -> None:
+    """Blank every row from `start` through the current cursor position
+    (inclusive), then move the cursor back to `start`. Used to remove
+    multi-line UI this program itself printed (like the book picker)
+    without disturbing whatever was on screen before it.
+    """
+    if not _USE_WRITE_CONSOLE:
+        return
+    info = _screen_info()
+    buffer_width = max(info.dwSize.X, 1)
+    rows = max(info.dwCursorPosition.Y - start.Y + 1, 1)
+    _fill_blank(start, buffer_width * rows - start.X)
+    _set_cursor(start)
 

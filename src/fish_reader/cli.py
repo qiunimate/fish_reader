@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from fish_reader import config, library, progress, reader
-from fish_reader.console import capture_prompt_prefix, clear_screen, safe_input, safe_print
+from fish_reader.console import capture_prompt_prefix, clear_block, mark_position, safe_input, safe_print
 
 
 def _pick_book(books: list[Path], requested_name: str | None) -> Path:
@@ -66,9 +66,15 @@ def main() -> None:
         safe_print("No .txt files found in books/ — drop some novels in there first.")
         sys.exit(1)
 
+    picker_start = mark_position()
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
-    clear_screen()
+
+    # Wipe only the book-picker's own output (Library: / entries / prompt),
+    # not the whole screen -- everything printed before this program ran
+    # stays on screen so it still looks like normal terminal history.
+    if picker_start is not None:
+        clear_block(picker_start)
     if prompt_prefix:
         safe_print(prompt_prefix, end="")
     reader.run(book_path, lines)

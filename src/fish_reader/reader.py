@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from fish_reader import progress
-from fish_reader.console import clear_screen, overwrite_line, safe_print
+from fish_reader.console import clear_last_block, overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
 BACK_KEYS = {"a", "A"}
@@ -81,4 +81,4 @@ def run(book_path: Path, lines: list[str]) -> None:
         pass
     finally:
         progress.set_line_index(book_name, pos + 1)
-        clear_screen()
+        clear_last_block()
