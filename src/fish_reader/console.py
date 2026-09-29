@@ -205,28 +205,39 @@ def clear_last_block() -> None:
     _last_rows = 1
 
 
-def mark_position() -> _COORD | None:
-    """Snapshot the current cursor position, to later erase everything
-    printed from here on (see clear_block) without touching anything above
-    it -- i.e. real terminal history from before this program ran.
+def count_rows(text: str, start_col: int = 0) -> int:
+    """How many terminal rows `text` occupies if printed starting at column `start_col`.
+
+    Callers that print multi-line UI (like the book picker) they'll want to
+    erase later should tally this up per line printed, instead of snapshotting
+    a cursor position before printing and diffing it against one taken after:
+    if printing runs the cursor into the bottom of the console's screen
+    buffer, the whole buffer scrolls up to make room and every row number
+    recorded before that scroll silently stops matching where its content
+    actually ended up, undercounting how much needs clearing later. Counting
+    from content width instead is immune to that.
     """
     if not _USE_WRITE_CONSOLE:
-        return None
+        return 1
     info = _screen_info()
-    return _COORD(info.dwCursorPosition.X, info.dwCursorPosition.Y)
+    buffer_width = max(info.dwSize.X, 1)
+    return _rows_needed(_display_width(text), start_col, buffer_width)
 
 
-def clear_block(start: _COORD) -> None:
-    """Blank every row from `start` through the current cursor position
-    (inclusive), then move the cursor back to `start`. Used to remove
-    multi-line UI this program itself printed (like the book picker)
-    without disturbing whatever was on screen before it.
+def clear_previous_rows(n: int) -> None:
+    """Erase the `n` rows immediately above and including the current cursor
+    row, then move the cursor to the top of that block. `n` should come from
+    count_rows() tallied while printing, not from a stored earlier cursor
+    position -- see count_rows() for why the latter breaks under scrolling.
     """
-    if not _USE_WRITE_CONSOLE:
+    if not _USE_WRITE_CONSOLE or n <= 0:
         return
     info = _screen_info()
     buffer_width = max(info.dwSize.X, 1)
-    rows = max(info.dwCursorPosition.Y - start.Y + 1, 1)
-    _fill_blank(start, buffer_width * rows - start.X)
+    current = info.dwCursorPosition
+    start_row = max(current.Y - n + 1, 0)
+    rows_to_clear = current.Y - start_row + 1
+    start = _COORD(0, start_row)
+    _fill_blank(start, buffer_width * rows_to_clear)
     _set_cursor(start)
 

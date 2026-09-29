@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from fish_reader import config, library, progress, reader
-from fish_reader.console import capture_prompt_prefix, clear_block, mark_position, safe_input, safe_print
+from fish_reader.console import capture_prompt_prefix, clear_previous_rows, count_rows, safe_input, safe_print
 
 
 def _pick_book(books: list[Path], requested_name: str | None) -> Path:
@@ -23,18 +23,29 @@ def _pick_book(books: list[Path], requested_name: str | None) -> Path:
         (i for i, b in enumerate(books) if b.name == last_book), 0
     )
 
-    safe_print("Library:")
+    # Tally rows as we print so we can wipe exactly this menu later, even if
+    # printing it scrolled the console buffer (see console.count_rows).
+    printed_rows = 0
+
+    header = "Library:"
+    safe_print(header)
+    printed_rows += count_rows(header)
     for i, b in enumerate(books):
         marker = " (last read)" if b.name == last_book else ""
-        safe_print(f"  [{i}] {b.stem}{marker}")
+        line = f"  [{i}] {b.stem}{marker}"
+        safe_print(line)
+        printed_rows += count_rows(line)
 
-    raw = safe_input(f"Pick one (Enter for default [{default_index}]): ").strip()
-    if raw == "":
-        return books[default_index]
-    if not raw.isdigit() or not (0 <= int(raw) < len(books)):
+    prompt = f"Pick one (Enter for default [{default_index}]): "
+    raw = safe_input(prompt).strip()
+    printed_rows += count_rows(prompt + raw)
+
+    if raw != "" and (not raw.isdigit() or not (0 <= int(raw) < len(books))):
         safe_print("Invalid input")
         sys.exit(1)
-    return books[int(raw)]
+
+    clear_previous_rows(printed_rows + 1)  # +1 for the blank row Enter left the cursor on
+    return books[default_index] if raw == "" else books[int(raw)]
 
 
 def main() -> None:
@@ -66,15 +77,9 @@ def main() -> None:
         safe_print("No .txt files found in books/ — drop some novels in there first.")
         sys.exit(1)
 
-    picker_start = mark_position()
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
 
-    # Wipe only the book-picker's own output (Library: / entries / prompt),
-    # not the whole screen -- everything printed before this program ran
-    # stays on screen so it still looks like normal terminal history.
-    if picker_start is not None:
-        clear_block(picker_start)
     if prompt_prefix:
         safe_print(prompt_prefix, end="")
     reader.run(book_path, lines)
