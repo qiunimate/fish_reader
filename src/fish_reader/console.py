@@ -139,6 +139,39 @@ _anchor: _COORD | None = None
 _last_rows = 1
 
 
+def reclaim_command_line() -> bool:
+    """Call before printing anything else: erases the typed command on the
+    row above the cursor (the "prompt + fish-reader ..." line), leaving only
+    the prompt part visible, and pre-registers that spot as where
+    overwrite_line should resume drawing. That means the *first* line of the
+    novel ends up occupying exactly the space the typed command used to, as
+    if the command itself had simply been replaced -- there's no separate
+    moment where the invoking command is visible on screen next to a
+    "Library:" menu, and no copy of the prompt needs to be printed again
+    later. The cursor is moved to a fresh row below so whatever gets printed
+    next (the book picker) doesn't collide with this reclaimed line.
+    Returns whether this could be done at all (see capture_prompt_prefix).
+    """
+    global _anchor, _last_rows
+
+    prefix = capture_prompt_prefix()
+    if prefix is None:
+        return False
+
+    info = _screen_info()
+    row = info.dwCursorPosition.Y - 1
+    buffer_width = max(info.dwSize.X, 1)
+    col = _display_width(prefix)
+
+    anchor = _COORD(col, row)
+    _fill_blank(anchor, buffer_width - col)
+
+    _anchor = anchor
+    _last_rows = 1
+    _set_cursor(_COORD(0, row + 1))
+    return True
+
+
 def _rows_needed(width: int, start_col: int, buffer_width: int) -> int:
     first_row_capacity = max(buffer_width - start_col, 0)
     if width <= first_row_capacity:

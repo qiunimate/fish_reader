@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from fish_reader import config, library, progress, reader
-from fish_reader.console import capture_prompt_prefix, clear_previous_rows, count_rows, safe_input, safe_print
+from fish_reader.console import clear_previous_rows, count_rows, reclaim_command_line, safe_input, safe_print
 
 
 def _pick_book(books: list[Path], requested_name: str | None) -> Path:
@@ -49,10 +49,10 @@ def _pick_book(books: list[Path], requested_name: str | None) -> Path:
 
 
 def main() -> None:
-    # Must capture this before printing anything: it's "the line right before
-    # Enter was pressed on fish-reader". Any later and our own output pushes
-    # it out of reach.
-    prompt_prefix = capture_prompt_prefix()
+    # Must happen before printing anything else: it erases "fish-reader ..."
+    # on the line just above (see reclaim_command_line) and reserves that
+    # spot for the novel's first line.
+    reclaim_command_line()
 
     parser = argparse.ArgumentParser(description="Disguised fish-reading tool")
     parser.add_argument("book", nargs="?", help="Book name (filename or stem); omit to pick from the library")
@@ -79,9 +79,6 @@ def main() -> None:
 
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
-
-    if prompt_prefix:
-        safe_print(prompt_prefix, end="")
     reader.run(book_path, lines)
 
 
