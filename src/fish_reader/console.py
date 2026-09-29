@@ -1,9 +1,11 @@
-"""Windows 下绕开控制台代码页/PowerShell 编码问题的输出封装。
+"""Output helpers that work around Windows console codepage / PowerShell encoding issues.
 
-PowerShell 5.1 的 [Console]::OutputEncoding 是它自己缓存的一层（常见默认是
-cp850），跟原始控制台代码页（chcp/SetConsoleOutputCP）是两回事，子进程改
-代码页它不会跟着同步，所以普通 print() 在 PS5.1 里打印中文会乱码。
-直接调 WriteConsoleW 往控制台句柄写 UTF-16 文本可以绕开这层转换。
+PowerShell 5.1's [Console]::OutputEncoding is its own cached layer (commonly
+defaulting to cp850), separate from the raw console codepage (chcp /
+SetConsoleOutputCP); a child process changing the codepage doesn't get
+picked up by it, so plain print() garbles Chinese text in PS5.1. Calling
+WriteConsoleW directly on the console handle writes UTF-16 text and bypasses
+that translation layer entirely.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ def _console_handle() -> int:
 
 
 def _is_real_console() -> bool:
-    """stdout 被重定向到文件/管道时 GetConsoleMode 会失败，这时用普通 print 即可。"""
+    """GetConsoleMode fails when stdout is redirected to a file/pipe; plain print() is fine then."""
     if sys.platform != "win32":
         return False
     mode = ctypes.c_uint32()
@@ -33,7 +35,7 @@ _USE_WRITE_CONSOLE = _is_real_console()
 
 
 def safe_print(text: str = "", end: str = "\n") -> None:
-    """跨编码环境安全的输出，中文/PS5.1 场景不会乱码。"""
+    """Encoding-safe output that won't garble Chinese text under PS5.1."""
     if _USE_WRITE_CONSOLE:
         line = text + end
         written = ctypes.c_uint32(0)
@@ -45,7 +47,7 @@ def safe_print(text: str = "", end: str = "\n") -> None:
 
 
 def safe_input(prompt: str = "") -> str:
-    """跨编码环境安全的 input()：提示文字走 safe_print，避免 input() 自己用错编码打印。"""
+    """Encoding-safe input(): the prompt text goes through safe_print so input() doesn't print it with the wrong encoding."""
     safe_print(prompt, end="")
     return input()
 
@@ -55,7 +57,7 @@ def clear_screen() -> None:
 
 
 def _display_width(text: str) -> int:
-    """终端里中日韩字符占 2 列、其余占 1 列，算要清多少列不能按字符数算。"""
+    """CJK characters take up 2 terminal columns, everything else 1; must count columns, not characters, to know how much to clear."""
     return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
 
 
@@ -114,10 +116,12 @@ _PROMPT_DELIMITERS = ("> ", "$ ", "# ", "% ")
 
 
 def capture_prompt_prefix() -> str | None:
-    """在程序打印任何东西之前调用：把光标上一行（也就是刚敲完回车前的
-    "提示符 + 命令" 那一行）读出来，截掉命令只留提示符本身。提示符本身
-    因人而异（conda 环境名、路径、oh-my-posh 主题……），所以只能现读，
-    不能写死；找不到常见提示符分隔符就放弃，调用方要有兜底逻辑。
+    """Call this before printing anything else: reads the row above the
+    cursor (the "prompt + command" line from just before Enter was pressed)
+    and strips off the command, keeping only the prompt itself. The prompt
+    varies per user (conda env name, path, oh-my-posh theme, ...), so it has
+    to be read at runtime rather than hard-coded; returns None if no common
+    prompt delimiter is found, and callers must have a fallback.
     """
     if not _USE_WRITE_CONSOLE:
         return None
@@ -145,17 +149,20 @@ def _rows_needed(width: int, start_col: int, buffer_width: int) -> int:
     if width <= first_row_capacity:
         return 1
     remaining = width - first_row_capacity
-    return 1 + -(-remaining // buffer_width)  # 向上取整
+    return 1 + -(-remaining // buffer_width)  # ceil division
 
 
 def overwrite_line(text: str) -> None:
-    """原地刷新同一"行"：定位到固定光标坐标覆盖写，而不是只用 \\r。
+    """Redraw the same "line" in place by seeking to a fixed cursor position, instead of just using \\r.
 
-    小说一行文字常常超出终端宽度会自动换行，实际占用多行屏幕；只用 \\r
-    回到本行行首没法清掉上面被折行占用的部分，换短行时会有残留。这里
-    改成记住起始光标坐标，按上一次实际占用的行数整块清空后再重写。锚点
-    列不一定是 0（比如紧跟在 shell 提示符后面写），所以行数/清除范围都
-    要把起始列的偏移算进去。
+    A novel line often exceeds the terminal width and wraps, actually
+    occupying several screen rows; \\r alone only returns to the start of
+    the current row and can't clear the rows a wrapped line spilled into,
+    leaving leftovers when a shorter line follows. This remembers the
+    starting cursor position and blanks out however many rows the previous
+    write actually used before redrawing. The anchor column isn't always 0
+    (e.g. writing right after a shell prompt), so the row count and the
+    clear range both need to account for that starting-column offset.
     """
     global _anchor, _last_rows
 

@@ -1,4 +1,4 @@
-"""交互式阅读循环：按任意键翻下一行，q / Ctrl+C 退出。"""
+"""Interactive reading loop: any key advances a line, q / Ctrl+C quits."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from fish_reader import progress
 from fish_reader.console import clear_screen, overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
-BACK_KEYS = {"\x08", "\x7f"}  # Backspace（Windows/大多数终端 \x08，部分终端 \x7f）
+BACK_KEYS = {"\x08", "\x7f"}  # Backspace (\x08 on Windows/most terminals, \x7f on some)
 
 
 def _read_key() -> str:
-    """读取一个按键，不回显、不需要回车。"""
+    """Read a single keypress, no echo, no Enter required."""
     if sys.platform == "win32":
         import msvcrt
 
@@ -40,10 +40,10 @@ def run(book_path: Path, lines: list[str]) -> None:
     start = progress.get_line_index(book_name)
 
     if start >= len(lines):
-        safe_print(f"《{book_path.stem}》已经读完啦。")
+        safe_print(f'"{book_path.stem}" is already finished.')
         return
 
-    # pos 是当前显示行的下标，-1 表示还没显示过任何一行
+    # pos is the index of the currently displayed line; -1 means nothing shown yet
     pos = start - 1
     try:
         while True:
