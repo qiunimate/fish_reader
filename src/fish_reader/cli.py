@@ -1,19 +1,20 @@
-"""命令行入口：选书、进入阅读循环。"""
+"""CLI entry point: pick a book, enter the reading loop."""
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from fish_reader import config, library, progress, reader
-from fish_reader.console import capture_prompt_prefix, clear_screen, safe_input, safe_print
+from fish_reader.console import clear_previous_rows, count_rows, reclaim_command_line, safe_input, safe_print
 
 
-def _pick_book(books: list, requested_name: str | None):
+def _pick_book(books: list[Path], requested_name: str | None) -> Path:
     if requested_name is not None:
         matches = [b for b in books if b.name == requested_name or b.stem == requested_name]
         if not matches:
-            safe_print(f"没找到书: {requested_name}")
+            safe_print(f"Book not found: {requested_name}")
             sys.exit(1)
         return matches[0]
 
@@ -22,53 +23,62 @@ def _pick_book(books: list, requested_name: str | None):
         (i for i, b in enumerate(books) if b.name == last_book), 0
     )
 
-    safe_print("书架：")
-    for i, b in enumerate(books):
-        marker = " (上次读到这本)" if b.name == last_book else ""
-        safe_print(f"  [{i}] {b.stem}{marker}")
+    # Tally rows as we print so we can wipe exactly this menu later, even if
+    # printing it scrolled the console buffer (see console.count_rows).
+    printed_rows = 0
 
-    raw = safe_input(f"选一本 (回车默认 [{default_index}]): ").strip()
-    if raw == "":
-        return books[default_index]
-    if not raw.isdigit() or not (0 <= int(raw) < len(books)):
-        safe_print("输入无效")
+    header = "Library:"
+    safe_print(header)
+    printed_rows += count_rows(header)
+    for i, b in enumerate(books):
+        marker = " (last read)" if b.name == last_book else ""
+        line = f"  [{i}] {b.stem}{marker}"
+        safe_print(line)
+        printed_rows += count_rows(line)
+
+    prompt = f"Pick one (Enter for default [{default_index}]): "
+    raw = safe_input(prompt).strip()
+    printed_rows += count_rows(prompt + raw)
+
+    if raw != "" and (not raw.isdigit() or not (0 <= int(raw) < len(books))):
+        safe_print("Invalid input")
         sys.exit(1)
-    return books[int(raw)]
+
+    clear_previous_rows(printed_rows + 1)  # +1 for the blank row Enter left the cursor on
+    return books[default_index] if raw == "" else books[int(raw)]
 
 
 def main() -> None:
-    # 必须在打印任何东西之前抓，抓的是"刚敲完 fish-reader 回车前那一行"，
-    # 晚了这一行就被后面的输出顶上去、读不到了。
-    prompt_prefix = capture_prompt_prefix()
+    # Must happen before printing anything else: it erases "fish-reader ..."
+    # on the line just above (see reclaim_command_line) and reserves that
+    # spot for the novel's first line.
+    reclaim_command_line()
 
-    parser = argparse.ArgumentParser(description="伪装摸鱼阅读器")
-    parser.add_argument("book", nargs="?", help="书名（文件名或不带后缀的名字），不传则进入书架选择")
+    parser = argparse.ArgumentParser(description="Disguised fish-reading tool")
+    parser.add_argument("book", nargs="?", help="Book name (filename or stem); omit to pick from the library")
     parser.add_argument(
         "--chunk-size",
         type=int,
         default=None,
         metavar="N",
-        help=f"每次翻页显示多少个字符，会保存为默认配置（默认 {config.DEFAULT_CHARS_PER_CHUNK}）",
+        help=f"How many characters to show per keypress; saved as the default (default {config.DEFAULT_CHARS_PER_CHUNK})",
     )
     args = parser.parse_args()
 
     if args.chunk_size is not None:
         if args.chunk_size <= 0:
-            safe_print("--chunk-size 必须是正整数")
+            safe_print("--chunk-size must be a positive integer")
             sys.exit(1)
         config.set_chars_per_chunk(args.chunk_size)
     chars_per_chunk = config.get_chars_per_chunk()
 
     books = library.list_books()
     if not books:
-        safe_print("books/ 目录里没有找到任何 .txt 文件，先放几本小说进去吧。")
+        safe_print("No .txt files found in books/ — drop some novels in there first.")
         sys.exit(1)
 
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
-    clear_screen()
-    if prompt_prefix:
-        safe_print(prompt_prefix, end="")
     reader.run(book_path, lines)
 
 

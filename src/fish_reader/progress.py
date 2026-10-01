@@ -1,4 +1,4 @@
-"""阅读进度持久化：存在用户目录下，不跟书架一起进版本库。"""
+"""Reading progress persistence: stored in the user's home directory, not tracked alongside the library."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _load_all() -> dict[str, Any]:
     try:
         return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        # 进度文件损坏就当没有进度，不影响正常使用
+        # Treat a corrupt progress file as no progress; doesn't affect normal usage
         return {}
 
 
@@ -26,7 +26,7 @@ def _save_all(data: dict[str, Any]) -> None:
 
 
 def get_line_index(book_name: str) -> int:
-    """返回某本书上次读到的行号（下一行要读的位置），没有记录则为 0。"""
+    """Return where a book was last left off (index of the next line to show); 0 if never read."""
     data = _load_all()
     books: dict[str, int] = data.get("books", {})
     return books.get(book_name, 0)

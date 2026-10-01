@@ -1,4 +1,4 @@
-"""交互式阅读循环：按任意键翻下一行，q / Ctrl+C 退出。"""
+"""Interactive reading loop: a/d move back/forward a line, s toggles hiding the text, q / Ctrl+C quits."""
 
 from __future__ import annotations
 
@@ -6,18 +6,27 @@ import sys
 from pathlib import Path
 
 from fish_reader import progress
-from fish_reader.console import clear_screen, overwrite_line, safe_print
+from fish_reader.console import clear_last_block, overwrite_line, safe_print
 
 QUIT_KEYS = {"q", "Q", "\x03"}  # \x03 = Ctrl+C
-BACK_KEYS = {"\x08", "\x7f"}  # Backspace（Windows/大多数终端 \x08，部分终端 \x7f）
+BACK_KEYS = {"a", "A"}
+FORWARD_KEYS = {"d", "D"}
+TOGGLE_HIDE_KEYS = {"s", "S"}
 
 
 def _read_key() -> str:
-    """读取一个按键，不回显、不需要回车。"""
+    """Read a single keypress, no echo, no Enter required."""
     if sys.platform == "win32":
         import msvcrt
 
         ch = msvcrt.getch()
+        if ch in (b"\x00", b"\xe0"):
+            # Extended key (arrows, Home/End, PageUp/Down, Delete, F-keys):
+            # msvcrt reports it as this lead byte followed by a second
+            # getch() call for the actual scan code. Consume that second
+            # byte now so it doesn't get misread as the next real keypress.
+            msvcrt.getch()
+            return ""
         try:
             return ch.decode("utf-8", errors="ignore")
         except UnicodeDecodeError:
@@ -40,25 +49,36 @@ def run(book_path: Path, lines: list[str]) -> None:
     start = progress.get_line_index(book_name)
 
     if start >= len(lines):
-        safe_print(f"《{book_path.stem}》已经读完啦。")
+        safe_print(f'"{book_path.stem}" is already finished.')
         return
 
-    # pos 是当前显示行的下标，-1 表示还没显示过任何一行
+    # pos is the index of the currently displayed line; -1 means nothing shown yet
     pos = start - 1
+    hidden = False
     try:
         while True:
             key = _read_key()
+            if key == "":
+                continue  # unrecognized/undecodable key, ignore and wait for the next one
             if key in QUIT_KEYS:
                 break
+            if key in TOGGLE_HIDE_KEYS:
+                hidden = not hidden
+                if pos >= 0:
+                    overwrite_line("" if hidden else lines[pos])
+                continue
             if key in BACK_KEYS:
                 if pos <= 0:
                     continue
                 pos -= 1
-            else:
+            elif key in FORWARD_KEYS:
                 pos = min(pos + 1, len(lines) - 1)
-            overwrite_line(lines[pos])
+            else:
+                continue  # unbound key, ignore
+            if not hidden:
+                overwrite_line(lines[pos])
     except KeyboardInterrupt:
         pass
     finally:
         progress.set_line_index(book_name, pos + 1)
-        clear_screen()
+        clear_last_block()

@@ -1,4 +1,4 @@
-"""可调配置：目前只有"每次显示多少个字符"这一项。"""
+"""Tunable settings: currently just "how many characters to show per page"."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _load() -> dict[str, Any]:
     try:
         return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        # 配置文件损坏就当没配置，用默认值，不影响正常使用
+        # Treat a corrupt config file as unconfigured; fall back to the default
         return {}
 
 
