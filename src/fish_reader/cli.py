@@ -48,6 +48,40 @@ def _pick_book(books: list[Path], requested_name: str | None) -> Path:
     return books[default_index] if raw == "" else books[int(raw)]
 
 
+def _search_start(lines: list[str], query: str | None) -> int | None:
+    """Ask for text to search for and narrow it down to exactly one chunk,
+    returning its index. Leaving the query blank (either the initial one or
+    a later refinement) gives up and returns None, meaning "just continue
+    from where I left off".
+    """
+    printed_rows = 0
+
+    if query is None:
+        prompt = "Search text to jump to (blank to continue reading): "
+        query = safe_input(prompt).strip()
+        printed_rows += count_rows(prompt + query)
+
+    result: int | None = None
+    while query:
+        matches = [i for i, line in enumerate(lines) if query.lower() in line.lower()]
+        if not matches:
+            msg = f'No match for "{query}".'
+        elif len(matches) == 1:
+            result = matches[0]
+            break
+        else:
+            msg = f'{len(matches)} matches for "{query}" -- type more text to narrow it down.'
+        safe_print(msg)
+        printed_rows += count_rows(msg)
+
+        prompt = "Search (blank to skip): "
+        query = safe_input(prompt).strip()
+        printed_rows += count_rows(prompt + query)
+
+    clear_previous_rows(printed_rows + 1)
+    return result
+
+
 def main() -> None:
     # Must happen before printing anything else: it erases "fish-reader ..."
     # on the line just above (see reclaim_command_line) and reserves that
@@ -62,6 +96,12 @@ def main() -> None:
         default=None,
         metavar="N",
         help=f"How many characters to show per keypress; saved as the default (default {config.DEFAULT_CHARS_PER_CHUNK})",
+    )
+    parser.add_argument(
+        "--search",
+        default=None,
+        metavar="TEXT",
+        help="Jump straight to the passage containing this text instead of continuing from last position",
     )
     args = parser.parse_args()
 
@@ -79,7 +119,8 @@ def main() -> None:
 
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
-    reader.run(book_path, lines)
+    start_override = _search_start(lines, args.search)
+    reader.run(book_path, lines, start_override=start_override)
 
 
 if __name__ == "__main__":

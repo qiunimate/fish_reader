@@ -44,9 +44,9 @@ def _read_key() -> str:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
-def run(book_path: Path, lines: list[str]) -> None:
+def run(book_path: Path, lines: list[str], start_override: int | None = None) -> None:
     book_name = book_path.name
-    start = progress.get_line_index(book_name)
+    start = start_override if start_override is not None else progress.get_line_index(book_name)
 
     if start >= len(lines):
         safe_print(f'"{book_path.stem}" is already finished.')
