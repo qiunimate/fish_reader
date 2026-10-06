@@ -172,6 +172,24 @@ def reclaim_command_line() -> bool:
     return True
 
 
+def rebind_anchor_above_cursor() -> None:
+    """Re-point the reserved novel spot at the row just above the cursor.
+
+    Call once all menu UI has been cleared (cursor is back on the row right
+    below the reclaimed command line). In a short window the menu can push
+    the cursor into the bottom of the buffer and scroll it, leaving the row
+    stored by reclaim_command_line() stale, so the novel would be drawn on
+    the wrong row with a big gap above it. The column stays as it was.
+    """
+    global _anchor
+
+    if _anchor is None or not _USE_WRITE_CONSOLE:
+        return
+    row = _screen_info().dwCursorPosition.Y - 1
+    if row >= 0:
+        _anchor = _COORD(_anchor.X, row)
+
+
 def _rows_needed(width: int, start_col: int, buffer_width: int) -> int:
     first_row_capacity = max(buffer_width - start_col, 0)
     if width <= first_row_capacity:
