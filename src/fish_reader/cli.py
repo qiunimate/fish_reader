@@ -7,7 +7,14 @@ import sys
 from pathlib import Path
 
 from fish_reader import config, library, progress, reader
-from fish_reader.console import clear_previous_rows, count_rows, reclaim_command_line, safe_input, safe_print
+from fish_reader.console import (
+    clear_previous_rows,
+    count_rows,
+    rebind_anchor_above_cursor,
+    reclaim_command_line,
+    safe_input,
+    safe_print,
+)
 
 
 def _pick_book(books: list[Path], requested_name: str | None) -> Path:
@@ -120,6 +127,7 @@ def main() -> None:
     book_path = _pick_book(books, args.book)
     lines = library.chunk_lines(library.load_lines(book_path), chars_per_chunk)
     start_override = _search_start(lines, args.search)
+    rebind_anchor_above_cursor()
     reader.run(book_path, lines, start_override=start_override)
 
 
