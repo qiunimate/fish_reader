@@ -95,6 +95,15 @@ def main() -> None:
     # spot for the novel's first line.
     reclaim_command_line()
 
+    # A traceback would print the "fish-reader" executable path.
+    try:
+        _run()
+    except (KeyboardInterrupt, EOFError):
+        safe_print()
+        sys.exit(130)
+
+
+def _run() -> None:
     parser = argparse.ArgumentParser(description="Disguised fish-reading tool")
     parser.add_argument("book", nargs="?", help="Book name (filename or stem); omit to pick from the library")
     parser.add_argument(
