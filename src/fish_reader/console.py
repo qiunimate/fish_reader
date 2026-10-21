@@ -110,13 +110,16 @@ def _read_row_text(row: int, width: int) -> str:
 _PROMPT_DELIMITERS = ("> ", "$ ", "# ", "% ")
 
 
-def capture_prompt_prefix() -> str | None:
-    """Call this before printing anything else: reads the row above the
-    cursor (the "prompt + command" line from just before Enter was pressed)
-    and strips off the command, keeping only the prompt itself. The prompt
-    varies per user (conda env name, path, oh-my-posh theme, ...), so it has
-    to be read at runtime rather than hard-coded; returns None if no common
-    prompt delimiter is found, and callers must have a fallback.
+def capture_prompt_prefix() -> tuple[int, str] | None:
+    """Call this before printing anything else: finds the "prompt + command"
+    line(s) just above the cursor and returns (first_row, prompt), where
+    prompt is the block's text with the command stripped off (padded to the
+    full row width, so its length maps directly to row/column). In a narrow
+    window the command wraps onto several rows, so this walks upward while
+    the row above is filled to the edge. The prompt varies per user (conda
+    env name, path, oh-my-posh theme, ...), so it has to be read at runtime
+    rather than hard-coded; returns None if no common prompt delimiter is
+    found, and callers must have a fallback.
     """
     if not _USE_WRITE_CONSOLE:
         return None
@@ -127,16 +130,23 @@ def capture_prompt_prefix() -> str | None:
         return None
 
     buffer_width = max(info.dwSize.X, 1)
-    row_text = _read_row_text(row, buffer_width).rstrip()
-    for delim in _PROMPT_DELIMITERS:
-        idx = row_text.rfind(delim)
-        if idx != -1:
-            return row_text[: idx + len(delim)]
-    return None
+    while row > 0:
+        above = _read_row_text(row - 1, buffer_width).rstrip()
+        if _display_width(above) < buffer_width - 1:
+            break
+        row -= 1
+
+    last_row = info.dwCursorPosition.Y - 1
+    block = "".join(_read_row_text(r, buffer_width).ljust(buffer_width) for r in range(row, last_row + 1))
+    ends = [block.find(d) + len(d) for d in _PROMPT_DELIMITERS if d in block]
+    if not ends:
+        return None
+    return row, block[: min(ends)]
 
 
 _anchor: _COORD | None = None
 _last_rows = 1
+_reserved_rows = 1  # rows the typed command occupied; the novel's first line takes them over
 
 
 def reclaim_command_line() -> bool:
@@ -152,23 +162,26 @@ def reclaim_command_line() -> bool:
     next (the book picker) doesn't collide with this reclaimed line.
     Returns whether this could be done at all (see capture_prompt_prefix).
     """
-    global _anchor, _last_rows
+    global _anchor, _last_rows, _reserved_rows
 
-    prefix = capture_prompt_prefix()
-    if prefix is None:
+    captured = capture_prompt_prefix()
+    if captured is None:
         return False
+    first_row, prefix = captured
 
     info = _screen_info()
-    row = info.dwCursorPosition.Y - 1
+    cursor_row = info.dwCursorPosition.Y
     buffer_width = max(info.dwSize.X, 1)
-    col = _display_width(prefix)
+    offset = _display_width(prefix)
 
-    anchor = _COORD(col, row)
-    _fill_blank(anchor, buffer_width - col)
+    # The prompt itself can wrap in a narrow window, so the anchor may sit below first_row.
+    anchor = _COORD(offset % buffer_width, first_row + offset // buffer_width)
+    _fill_blank(anchor, buffer_width * (cursor_row - anchor.Y) - anchor.X)
 
     _anchor = anchor
     _last_rows = 1
-    _set_cursor(_COORD(0, row + 1))
+    _reserved_rows = cursor_row - anchor.Y
+    _set_cursor(_COORD(0, cursor_row))
     return True
 
 
@@ -185,7 +198,7 @@ def rebind_anchor_above_cursor() -> None:
 
     if _anchor is None or not _USE_WRITE_CONSOLE:
         return
-    row = _screen_info().dwCursorPosition.Y - 1
+    row = _screen_info().dwCursorPosition.Y - _reserved_rows
     if row >= 0:
         _anchor = _COORD(_anchor.X, row)
 
