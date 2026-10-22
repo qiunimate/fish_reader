@@ -75,6 +75,8 @@ def run(book_path: Path, lines: list[str], start_override: int | None = None) ->
                 pos = min(pos + 1, len(lines) - 1)
             else:
                 continue  # unbound key, ignore
+            # Save on every move: closing the terminal window kills the process without running `finally`.
+            progress.set_line_index(book_name, pos + 1)
             if not hidden:
                 overwrite_line(lines[pos])
     except KeyboardInterrupt:
